@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Forms Dashboard</title>
+  <!-- Brand: Archivo + kleuren -->
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --brand-blue:#212945; /* donkerblauw */
+      --brand-cyan:#52E8E8; /* lichtblauw */
+      --bg:#0b1022;
+      --muted:#c8d2ff;
+      --card:#141b35;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Archivo,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,'Noto Sans','Apple Color Emoji','Segoe UI Emoji';background:linear-gradient(180deg,var(--bg),#0e1530 40%, #0b1022);color:#eef2ff}
+    header{padding:24px 16px 8px;display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
+    .title{display:flex;gap:12px;align-items:center}
+    .logo{width:40px;height:40px;border-radius:10px;background:conic-gradient(from 90deg,var(--brand-cyan),#8ff, #7dd3fc,#60a5fa,#93c5fd,var(--brand-cyan));filter:saturate(1.1) brightness(1.05)}
+    h1{margin:0;font-size:20px;letter-spacing:.3px}
+    .badge{font-size:12px;border:1px solid rgba(255,255,255,.12);padding:4px 8px;border-radius:999px;color:#cbd5e1}
+    main{padding:18px}
+    .grid{display:grid;gap:14px}
+    @media(min-width:920px){.grid{grid-template-columns:280px 1fr}}
+    .panel{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:18px;padding:14px}
+    .panel h2{margin:0 0 10px;font-size:14px;color:#cbd5e1;font-weight:600;letter-spacing:.2px}
+    .controls{display:grid;gap:10px}
+    .field{display:grid;gap:6px}
+    label{font-size:12px;color:#cbd5e1}
+    select,input[type="text"]{background:#0c132b;color:#e5e7eb;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;font:inherit}
+    .btn{appearance:none;background:var(--brand-cyan);color:#00111a;border:none;border-radius:12px;padding:10px 12px;font-weight:700;cursor:pointer}
+    .btn.secondary{background:transparent;color:#cbd5e1;border:1px solid rgba(255,255,255,.14)}
+    .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    @media(min-width:680px){.kpis{grid-template-columns:repeat(4,1fr)}}
+    .kpi{background:linear-gradient(180deg,#0f1631,#0b1228);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:12px}
+    .kpi .label{font-size:11px;color:#9aa6d1}
+    .kpi .value{font-size:22px;font-weight:700;margin-top:4px}
+    .charts{display:grid;gap:14px}
+    @media(min-width:920px){.charts{grid-template-columns:1fr 1fr}}
+    canvas{background:#0c132b;border-radius:16px;padding:10px;border:1px solid rgba(255,255,255,.06)}
+    .table-wrap{overflow:auto;border:1px solid rgba(255,255,255,.06);border-radius:16px}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    thead th{position:sticky;top:0;background:#0f1733;color:#cbd5e1;text-align:left;padding:10px;font-weight:600}
+    tbody td{padding:10px;border-top:1px solid rgba(255,255,255,.06)}
+    .muted{color:#99a7d8}
+    .footer{padding:10px 16px 26px;color:#9aa6d1;font-size:12px}
+    .link{color:var(--brand-cyan);text-decoration:none}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>Forms Dashboard</h1>
+        <div class="muted">Toon resultaten uit Microsoft Forms (CSV/Excel → CSV)</div>
+      </div>
+    </div>
+    <div class="badge" id="last-updated">laatst bijgewerkt: —</div>
+  </header>
+
+  <main class="grid">
+    <section class="panel controls">
+      <h2>Instellingen</h2>
+      <div class="field">
+        <label for="dataUrl">CSV-bestand in je repo</label>
+        <input id="dataUrl" type="text" value="data/responses.csv" />
+      </div>
+      <div class="field">
+        <label for="dateCol">Datumkolom (optioneel, voor tijdlijn)</label>
+        <select id="dateCol"></select>
+      </div>
+      <div class="field">
+        <label for="catCol">Categorische kolom voor verdeling</label>
+        <select id="catCol"></select>
+      </div>
+      <div class="field">
+        <label for="search">Zoek in tabel</label>
+        <input id="search" type="text" placeholder="typ om te filteren..." />
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px">
+        <button class="btn" id="reload">Data laden</button>
+        <button class="btn secondary" id="downloadCsv">Gefilterde tabel downloaden (CSV)</button>
+      </div>
+      <p class="muted" style="margin:8px 0 0">Tip: zet je Forms-Excel om naar CSV en upload het als <code>data/responses.csv</code> in deze repo.</p>
+    </section>
+
+    <section>
+      <div class="kpis" id="kpis">
+        <div class="kpi"><div class="label">Totaal reacties</div><div class="value" id="kpiTotal">—</div></div>
+        <div class="kpi"><div class="label">Unieke categorieën</div><div class="value" id="kpiCats">—</div></div>
+        <div class="kpi"><div class="label">Eerste datum</div><div class="value" id="kpiFirst">—</div></div>
+        <div class="kpi"><div class="label">Laatste datum</div><div class="value" id="kpiLast">—</div></div>
+      </div>
+
+      <div class="charts" style="margin-top:14px">
+        <div>
+          <h2>Verdeling per categorie</h2>
+          <canvas id="barChart" height="240"></canvas>
+        </div>
+        <div>
+          <h2>Tijdlijn (per maand)</h2>
+          <canvas id="timeChart" height="240"></canvas>
+        </div>
+      </div>
+
+      <div style="margin-top:14px" class="panel">
+        <h2>Alle reacties</h2>
+        <div class="table-wrap">
+          <table id="dataTable"></table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="footer">
+    <span class="muted">Handleiding:</span> upload je CSV naar <code>data/responses.csv</code> of vul hierboven een ander pad/URL in en klik <strong>Data laden</strong>.
+    
+  </div>
+
+  <!-- Libs: PapaParse (CSV) & Chart.js -->
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    // ======= Config =======
+    const els = {
+      dataUrl: document.getElementById('dataUrl'),
+      reload: document.getElementById('reload'),
+      lastUpdated: document.getElementById('last-updated'),
+      kpiTotal: document.getElementById('kpiTotal'),
+      kpiCats: document.getElementById('kpiCats'),
+      kpiFirst: document.getElementById('kpiFirst'),
+      kpiLast: document.getElementById('kpiLast'),
+      dateCol: document.getElementById('dateCol'),
+      catCol: document.getElementById('catCol'),
+      search: document.getElementById('search'),
+      table: document.getElementById('dataTable'),
+      downloadCsv: document.getElementById('downloadCsv'),
+    }
+
+    let rawRows = []
+    let filteredRows = []
+    let inferred = { dateCols: [], categorical: [], numeric: [] }
+
+    let barChart, timeChart
+
+    function niceDate(d){
+      if(!d) return '—'
+      const dd = new Date(d)
+      return isNaN(dd) ? '—' : dd.toLocaleDateString('nl-NL')
+    }
+
+    function groupCount(rows, key){
+      const m = new Map()
+      for(const r of rows){
+        const v = (r[key] ?? '').toString().trim() || '(leeg)'
+        m.set(v,(m.get(v)||0)+1)
+      }
+      return [...m.entries()].sort((a,b)=>b[1]-a[1])
+    }
+
+    function monthKey(d){
+      const dt = new Date(d)
+      if(isNaN(dt)) return null
+      return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`
+    }
+
+    function groupByMonth(rows, dateKey){
+      const m = new Map()
+      for(const r of rows){
+        const mk = monthKey(r[dateKey])
+        if(!mk) continue
+        m.set(mk,(m.get(mk)||0)+1)
+      }
+      return [...m.entries()].sort((a,b)=>a[0].localeCompare(b[0]))
+    }
+
+    function inferColumns(rows){
+      const keys = Object.keys(rows[0]||{})
+      const dateCols=[], categorical=[], numeric=[]
+      for(const k of keys){
+        let dCount=0, nCount=0, sCount=0
+        for(const r of rows.slice(0,200)){
+          const v = r[k]
+          if(v===undefined || v===null || v===''){ continue }
+          // date?
+          const dt = new Date(v)
+          if(!isNaN(dt) && /\d{4}|\d{1,2}[\/\-]\d{1,2}/.test(String(v))) { dCount++ ; continue }
+          // numeric?
+          const num = Number(String(v).replace(',','.'))
+          if(!Number.isNaN(num)) { nCount++; continue }
+          sCount++
+        }
+        if(dCount>3) dateCols.push(k)
+        else if(nCount>3) numeric.push(k)
+        else categorical.push(k)
+      }
+      return { dateCols, categorical, numeric }
+    }
+
+    function setSelectOptions(sel, opts){
+      sel.innerHTML=''
+      for(const o of opts){
+        const el = document.createElement('option')
+        el.value = o; el.textContent = o
+        sel.appendChild(el)
+      }
+    }
+
+    function renderKPIs(rows){
+      els.kpiTotal.textContent = rows.length.toLocaleString('nl-NL')
+
+      // date range (first/last)
+      const dcol = els.dateCol.value
+      if(dcol){
+        const dates = rows.map(r=>new Date(r[dcol])).filter(d=>!isNaN(d)).sort((a,b)=>a-b)
+        els.kpiFirst.textContent = niceDate(dates[0])
+        els.kpiLast.textContent = niceDate(dates[dates.length-1])
+      } else {
+        els.kpiFirst.textContent='—'; els.kpiLast.textContent='—'
+      }
+
+      // unique categories
+      const ccol = els.catCol.value
+      if(ccol){
+        const s = new Set(rows.map(r=> (r[ccol]??'').toString().trim()||'(leeg)'))
+        els.kpiCats.textContent = s.size
+      } else {
+        els.kpiCats.textContent = '—'
+      }
+    }
+
+    function renderBar(rows){
+      const ccol = els.catCol.value
+      if(!ccol) return
+      const data = groupCount(rows, ccol)
+      const labels = data.slice(0,20).map(d=>d[0])
+      const values = data.slice(0,20).map(d=>d[1])
+      if(barChart) barChart.destroy()
+      barChart = new Chart(document.getElementById('barChart'),{
+        type:'bar',
+        data:{labels, datasets:[{label:`Aantal per ${ccol}`, data:values}]},
+        options:{
+          responsive:true,
+          plugins:{legend:{display:false}, tooltip:{}} ,
+          scales:{x:{ticks:{color:'#cbd5e1'}}, y:{ticks:{color:'#cbd5e1'}, beginAtZero:true}}
+        }
+      })
+    }
+
+    function renderTime(rows){
+      const dcol = els.dateCol.value
+      const ctx = document.getElementById('timeChart')
+      if(timeChart) timeChart.destroy()
+      if(!dcol){
+        timeChart = new Chart(ctx,{type:'line', data:{labels:[], datasets:[{label:'Geen datumkolom geselecteerd', data:[]}]}})
+        return
+      }
+      const data = groupByMonth(rows, dcol)
+      const labels = data.map(d=>d[0])
+      const values = data.map(d=>d[1])
+      timeChart = new Chart(ctx,{
+        type:'line',
+        data:{labels, datasets:[{label:`Reacties per maand (${dcol})`, data:values, tension:.25, fill:false}]},
+        options:{
+          responsive:true,
+          plugins:{legend:{display:false}},
+          scales:{x:{ticks:{color:'#cbd5e1'}}, y:{ticks:{color:'#cbd5e1'}, beginAtZero:true}}
+        }
+      })
+    }
+
+    function renderTable(rows){
+      const keys = Object.keys(rows[0]||{})
+      const thead = `<thead><tr>${keys.map(k=>`<th>${k}</th>`).join('')}</tr></thead>`
+      const bodyRows = rows.map(r=> `<tr>${keys.map(k=>`<td>${(r[k]??'').toString().replace(/</g,'&lt;')}</td>`).join('')}</tr>`).join('')
+      els.table.innerHTML = thead + `<tbody>${bodyRows}</tbody>`
+    }
+
+    function applySearch(){
+      const q = els.search.value.toLowerCase().trim()
+      if(!q){ filteredRows = rawRows.slice() ; renderAll(); return }
+      filteredRows = rawRows.filter(r=> Object.values(r).some(v=> String(v).toLowerCase().includes(q)))
+      renderAll()
+    }
+
+    function renderAll(){
+      renderKPIs(filteredRows)
+      renderBar(filteredRows)
+      renderTime(filteredRows)
+      renderTable(filteredRows)
+    }
+
+    function csvFromRows(rows){
+      if(!rows.length) return ''
+      const keys = Object.keys(rows[0])
+      const header = keys.join(',')
+      const lines = rows.map(r=> keys.map(k=> {
+        const v = (r[k]??'').toString().replaceAll('"','""')
+        return /[",\n]/.test(v) ? `"${v}"` : v
+      }).join(','))
+      return header + "\n" + lines.join("\n")
+    }
+
+    function downloadFiltered(){
+      const blob = new Blob([csvFromRows(filteredRows)], {type:'text/csv;charset=utf-8'})
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = 'filtered_responses.csv'
+      a.click()
+    }
+
+    async function loadData(){
+      const url = els.dataUrl.value.trim()
+      els.lastUpdated.textContent = 'laden…'
+      return new Promise((resolve,reject)=>{
+        Papa.parse(url,{
+          download:true,
+          header:true,
+          skipEmptyLines:true,
+          complete: (res)=>{
+            rawRows = res.data
+            filteredRows = rawRows.slice()
+            inferred = inferColumns(rawRows)
+            setSelectOptions(els.dateCol, [''].concat(inferred.dateCols))
+            setSelectOptions(els.catCol, inferred.categorical.length? inferred.categorical : Object.keys(rawRows[0]||{}))
+            els.dateCol.value = inferred.dateCols[0] || ''
+            els.catCol.value = inferred.categorical[0] || Object.keys(rawRows[0]||{})[0] || ''
+            renderAll()
+            els.lastUpdated.textContent = 'laatst bijgewerkt: ' + new Date().toLocaleString('nl-NL')
+            resolve()
+          },
+          error: (err)=>{
+            els.lastUpdated.textContent = 'fout bij laden'
+            alert('Kon CSV niet laden: '+err)
+            reject(err)
+          }
+        })
+      })
+    }
+
+    // Events
+    els.reload.addEventListener('click', loadData)
+    els.search.addEventListener('input', applySearch)
+    els.dateCol.addEventListener('change', renderAll)
+    els.catCol.addEventListener('change', renderAll)
+    els.downloadCsv.addEventListener('click', downloadFiltered)
+
+    // Auto-load bij eerste bezoek
+    loadData()
+  </script>
+</body>
+</html>
